@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 // Route is a simple HTTP route that matches requests based on method and path.
@@ -18,14 +19,12 @@ type Route struct {
 
 // Router is a simple HTTP router that matches requests based on method and path.
 type Router struct {
-	routes []Route
+	routes sync.Map
 }
 
 // NewRouter creates a new Router.
 func NewRouter() *Router {
-	return &Router{
-		routes: make([]Route, 0),
-	}
+	return &Router{}
 }
 
 // Add adds a new route to the router.
@@ -33,18 +32,22 @@ func (r *Router) Add(urlString, method string, handler http.HandlerFunc) {
 	route := parseRouteFromURLString(urlString)
 	route.Method = method
 	route.Handler = handler
-	r.routes = append(r.routes, route)
+	r.addRoute(route)
+}
+
+func (r *Router) addRoute(route Route) {
+	key := getRouteKey(route.Method, route.Path)
+	r.routes.Store(key, route)
 }
 
 // ServeHTTP matches the request to a route and calls the handler for the route.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	for _, route := range r.routes {
-		if route.Method == req.Method && route.Path == req.URL.Path {
-			route.Handler(w, req)
-			return
-		}
+	key := getRouteKey(req.Method, req.URL.Path)
+	if route, ok := r.routes.Load(key); ok {
+		route.(Route).Handler(w, req)
+	} else {
+		http.NotFound(w, req)
 	}
-	http.NotFound(w, req)
 }
 
 func parseRouteFromURLString(urlString string) Route {
@@ -79,4 +82,8 @@ func getDomain(host string) string {
 		return strings.Join(parts[len(parts)-2:], ".")
 	}
 	return host
+}
+
+func getRouteKey(method, path string) string {
+	return method + ":" + path
 }
