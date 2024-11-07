@@ -2,6 +2,7 @@ package Router
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -28,12 +29,11 @@ func NewRouter() *Router {
 }
 
 // Add adds a new route to the router.
-func (r *Router) Add(method, path string, handler http.HandlerFunc) {
-	r.routes = append(r.routes, Route{
-		Method:  method,
-		Path:    path,
-		Handler: handler,
-	})
+func (r *Router) Add(urlString, method string, handler http.HandlerFunc) {
+	route := parseRouteFromURLString(urlString)
+	route.Method = method
+	route.Handler = handler
+	r.routes = append(r.routes, route)
 }
 
 // ServeHTTP matches the request to a route and calls the handler for the route.
@@ -48,25 +48,35 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func parseRouteFromURLString(urlString string) Route {
-	parts := strings.Split(urlString, "://")
-	scheme := parts[0]
-
-	if len(parts) > 1 {
-		hostParts := strings.Split(parts[1], "/")
-		domainParts := strings.Split(hostParts[0], ".")
-		if len(domainParts) > 2 {
-			route := Route{
-				Scheme:    scheme,
-				Subdomain: strings.Join(domainParts[:len(domainParts)-2], "."),
-				Domain:    strings.Join(domainParts[len(domainParts)-2:], "."),
-				Path:      "/" + strings.Join(hostParts[1:], "/"),
-			}
-			return route
+	u, err := url.Parse(urlString)
+	if err != nil {
+		return Route{
+			Path: urlString,
 		}
 	}
 
-	return Route{
-		Scheme: scheme,
-		Path:   urlString,
+	route := Route{
+		Scheme:    u.Scheme,
+		Subdomain: getSubdomain(u.Host),
+		Domain:    getDomain(u.Host),
+		Path:      u.Path,
 	}
+
+	return route
+}
+
+func getSubdomain(host string) string {
+	parts := strings.Split(host, ".")
+	if len(parts) > 2 {
+		return strings.Join(parts[:len(parts)-2], ".")
+	}
+	return ""
+}
+
+func getDomain(host string) string {
+	parts := strings.Split(host, ".")
+	if len(parts) > 1 {
+		return strings.Join(parts[len(parts)-2:], ".")
+	}
+	return host
 }
