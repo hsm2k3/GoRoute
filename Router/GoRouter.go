@@ -2,13 +2,17 @@ package Router
 
 import (
 	"net/http"
+	"strings"
 )
 
 // Route is a simple HTTP route that matches requests based on method and path.
 type Route struct {
-	Method  string
-	Path    string
-	Handler http.HandlerFunc
+	Scheme    string
+	Subdomain string
+	Domain    string
+	Path      string
+	Method    string
+	Handler   http.HandlerFunc
 }
 
 // Router is a simple HTTP router that matches requests based on method and path.
@@ -41,4 +45,28 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	http.NotFound(w, req)
+}
+
+func parseRouteFromURLString(urlString string) Route {
+	parts := strings.Split(urlString, "://")
+	scheme := parts[0]
+
+	if len(parts) > 1 {
+		hostParts := strings.Split(parts[1], "/")
+		domainParts := strings.Split(hostParts[0], ".")
+		if len(domainParts) > 2 {
+			route := Route{
+				Scheme:    scheme,
+				Subdomain: strings.Join(domainParts[:len(domainParts)-2], "."),
+				Domain:    strings.Join(domainParts[len(domainParts)-2:], "."),
+				Path:      "/" + strings.Join(hostParts[1:], "/"),
+			}
+			return route
+		}
+	}
+
+	return Route{
+		Scheme: scheme,
+		Path:   urlString,
+	}
 }
