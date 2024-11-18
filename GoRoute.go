@@ -1,9 +1,7 @@
 package main
 
-import (
-	"github.com/hsm2k3/GoRoute"
-)
+import "GoRoute/Router"
 
 func main() {
-	router := GoRoute.NewRouter()
+	router := Router.NewRouter()
 }
